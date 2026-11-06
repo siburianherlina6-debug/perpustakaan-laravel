@@ -1,0 +1,170 @@
+================================================================================
+                     ANALISA PROJECT: SISTEM PERPUSTAKAAN
+================================================================================
+Tanggal Analisa: 19 Oktober 2026
+Lokasi Project: c:\Users\sibur\OneDrive\Documents\perpustakaan2
+================================================================================
+
+1. RINGKASAN SINGKAT
+--------------------------------------------------------------------------------
+Project ini adalah Sistem Informasi Manajemen Perpustakaan berbasis web yang
+dibangun dengan Laravel Framework. Fitur utamanya meliputi manajemen buku,
+kategori, anggota, peminjaman, pengembalian dengan perhitungan denda,
+laporan PDF, dan autentikasi pengguna dengan peran (admin & member).
+
+================================================================================
+2. FRAMEWORK YANG DIGUNAKAN
+--------------------------------------------------------------------------------
+| Komponen        | Versi / Detail             | Keterangan                            |
+|-----------------|----------------------------|---------------------------------------|
+| Laravel         | ^12.0                      | PHP web framework, arsitektur MVC     |
+| PHP             | ^8.2                       | Bahasa pemrograman backend            |
+| Database        | SQLite (database.sqlite)   | Tersimpan dalam file tunggal          |
+| ORM             | Eloquent (bawaan Laravel)  | Model-relation database               |
+| CSS Framework   | Tailwind CSS v4            | Styling frontend                      |
+| Build Tool      | Vite ^7.0.7 + laravel-vite | Compile asset CSS/JS                  |
+| PDF Generator   | barryvdh/laravel-dompdf    | Cetak laporan ke PDF                  |
+| Testing         | PHPUnit ^11.5.50           | Unit & Feature test                   |
+| Date Library    | Carbon                     | Manipulasi tanggal/hari               |
+
+Project ini mengikuti pola MVC (Model-View-Controller) standar Laravel.
+
+================================================================================
+3. ALGORITMA YANG DIGUNAKAN DAN LETAKNYA
+--------------------------------------------------------------------------------
+
+A. Pencarian & Filter Buku (Search & Filter)
+   - File: app/Http/Controllers/BukuController.php (baris 16-30)
+   - Algoritma: Query builder dengan klausa LIKE pada kolom judul, kode_buku,
+     dan pengarang, serta filter berdasarkan kategori_id. Hasil diurutkan
+     terbaru (latest()) dan dibagi halaman (paginate(10)).
+   - File tambahan: app/Http/Controllers/MemberBukuController.php (baris 16-22)
+     - Pencarian buku untuk member dengan logika serupa, paginate 8 per halaman.
+
+B. Manajemen Stok Buku (Decrement/Increment)
+   - File: app/Http/Controllers/PeminjamanController.php (baris 71-73)
+     - Saat peminjaman, stok dikurangi 1 ($buku->stok--).
+   - File: app/Http/Controllers/PengembalianController.php (baris 46-51)
+     - Saat pengembalian, stok ditambah 1 ($buku->stok += 1).
+   - File: app/Http/Controllers/MemberBukuController.php (baris 50-51)
+     - Peminjaman member juga mengurangi stok.
+   - Validasi: Jika stok <= 0, peminjaman ditolak dengan pesan "Stok Buku Habis".
+
+C. Perhitungan Denda Keterlambatan
+   - File: app/Http/Controllers/PengembalianController.php (baris 25-38)
+   - Algoritma:
+     1. Bandingkan tanggal hari ini (Carbon::now()) dengan tanggal jatuh tempo
+        (tanggal_kembali).
+     2. Jika hari ini > jatuh tempo, hitung selisih hari dengan diffInDays().
+     3. Denda = terlambat x Rp1.000.
+     4. Simpan ke field denda pada tabel peminjaman dan ubah status menjadi
+        "Dikembalikan".
+
+D. Autentikasi & Hashing Password
+   - File: app/Http/Controllers/RegisterController.php (baris 57, 99)
+     - Hash::make($request->password) untuk menyimpan password ter-encrypt
+       (bcrypt).
+   - File: app/Http/Controllers/LoginController.php (baris 36-42)
+     - Auth::attempt(['email' => ..., 'password' => ...]) untuk verifikasi
+       login.
+   - File: app/Models/User.php (baris 48-51)
+     - casts mengatur password sebagai 'hashed'.
+
+E. Otorisasi Berbasis Peran (Role-Based Access)
+   - File: app/Http/Middleware/CheckRole.php (baris 13-14)
+   - Algoritma: Membandingkan auth()->user()->role dengan role yang diharapkan.
+     Jika tidak cocok, abort(403) (forbidden).
+   - Catatan: Dalam User.php tidak ada field 'role' di $fillable, hanya 'jenis'.
+     Middleware CheckRole merujuk ke $user->role yang kemungkinan belum
+     terdefinisi — ini bisa menjadi potensi bug.
+
+F. Verifikasi NPM (Member)
+   - File: app/Http/Controllers/MemberController.php (baris 19-39)
+   - Algoritma: Membandingkan input NPM dengan Auth::user()->npm. Jika cocok,
+     set session 'npm_verified = true' agar member dapat mengakses dashboard.
+
+G. Statistik Dashboard & Grafik
+   - File: app/Http/Controllers/DashboardController.php
+   - Algoritma: Loop 12 bulan (for $i = 1; $i <= 12; $i++) untuk menghitung
+     jumlah peminjaman per bulan menggunakan
+     whereMonth('tanggal_pinjam', $i)->count(), lalu dikirim ke view untuk
+     ditampilkan sebagai grafik.
+
+H. Export Laporan PDF
+   - File: app/Http/Controllers/LaporanController.php (baris 17-24)
+   - Algoritma: Mengambil semua data peminjaman dengan relasi user dan buku,
+     lalu merender view Blade ke PDF menggunakan barryvdh/laravel-dompdf dan
+     mengunduhnya sebagai 'laporan-peminjaman.pdf'.
+
+I. Model Reservasi (Catatan Anomali)
+   - File: app/Models/Reservasi.php
+   - Masalah: File ini bukan berisi model Eloquent biasa, melainkan kode yang
+     mirip controller (memanggil view() dan auth() di dalam model). Ini adalah
+     kesalahan penulisan/kode mati yang seharusnya dipindah ke Controller atau
+     diperbaiki agar hanya berisi relasi model.
+
+================================================================================
+4. FUNGSI TIAP FOLDER DAN FILE DI PROJECT
+================================================================================
+
+4.1 Folder Root & File Konfigurasi
+--------------------------------------------------------------------------------
+| File / Folder       | Fungsi                                                |
+|---------------------|-------------------------------------------------------|
+| composer.json       | Manajemen dependensi PHP (Laravel 12, DomPDF, Tinker, |
+|                     | PHPUnit, dll).                                        |
+| composer.lock       | Versi ter-lock dari semua paket Composer untuk        |
+|                     | reproducibility.                                      |
+| package.json        | Dependensi frontend (Tailwind CSS v4, Vite, Axios,    |
+|                     | Laravel Vite Plugin).                                 |
+| vite.config.js      | Konfigurasi Vite untuk compile resources/css/app.css  |
+|                     | dan resources/js/app.js.                              |
+| artisan             | CLI bawaan Laravel untuk perintah seperti migrate,    |
+|                     | serve, make:controller, dll.                          |
+| phpunit.xml         | Konfigurasi PHPUnit untuk pengujian otomatis.         |
+| .env / .env.example | Variabel lingkungan (database, app key, mail, dll).   |
+|                     | .env tidak di-commit ke git.                          |
+| README.md           | Dokumentasi standar Laravel.                          |
+| .gitignore          | File/folder yang diabaikan Git (vendor,               |
+|                     | node_modules, storage, .env, dll).                    |
+
+4.2 Folder app (Inti Aplikasi)
+--------------------------------------------------------------------------------
+| Sub-folder / File                          | Fungsi                                                  |
+|--------------------------------------------|---------------------------------------------------------|
+| app/Http/Controllers/                      | Berisi semua Controller (logika routing & request):     |
+|   BukuController.php                       | CRUD buku, pencarian, filter kategori, upload cover.    |
+|   KategoriController.php                   | CRUD kategori buku.                                     |
+|   PeminjamanController.php                 | Proses peminjaman buku, cek stok, kurangi stok.         |
+|   PengembalianController.php               | Proses pengembalian, hitung denda, tambah stok kembali. |
+|   DashboardController.php                  | Statistik admin (total buku, member, grafik peminjaman  |
+|                                            | per bulan, stok habis).                                 |
+|   LaporanController.php                    | Tampilan dan cetak laporan PDF.                         |
+|   AnggotaController.php                    | Daftar anggota (member).                                |
+|   MemberController.php                     | Halaman member: verifikasi NPM, riwayat, denda, profil, |
+|                                            | reservasi.                                              |
+|   MemberBukuController.php                 | Katalog buku untuk member, detail buku, tombol pinjam.  |
+|   LoginController.php                      | Login admin/member, logout.                             |
+|   RegisterController.php                   | Pendaftaran admin dan member dengan hash password.      |
+|   Controller.php                           | Base controller abstrak.                                |
+| app/Http/Middleware/CheckRole.php          | Middleware proteksi route berdasarkan role user         |
+|                                            | (admin / member).                                       |
+| app/Models/                                | Model Eloquent (representasi tabel database):           |
+|   User.php                                 | Tabel users (auth, jenis: admin/member).                |
+|   Buku.php                                 | Tabel bukus, relasi ke Kategori.                        |
+|   Kategori.php                             | Tabel kategoris, relasi hasMany ke Buku.                |
+|   Peminjaman.php                           | Tabel peminjaman, relasi ke User dan Buku.              |
+|   Reservasi.php                            | Model reservasi (masih memiliki kode anomali seperti    |
+|                                            | controller).                                            |
+| app/Providers/AppServiceProvider.php       | Service provider untuk register/boot layanan aplikasi   |
+|                                            | (kosong, default).                                      |
+
+4.3 Folder routes (Definisi Rute)
+--------------------------------------------------------------------------------
+| File              | Fungsi                                                  |
+|-------------------|---------------------------------------------------------|
+| routes/web.php    | Semua rute web: halaman awal, register, login, logout,  |
+|                   | dashboard admin, halaman member, resource CRUD buku &   |
+|                   | kategori, peminjaman, pengembalian, dan laporan.        |
+|                   | Semua rute utama dilindungi middleware 'auth'.          |
+| routes/console.php| Rute perintah Artisan konsol (hanya contoh 'inspire').  |
