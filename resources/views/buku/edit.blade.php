@@ -201,7 +201,7 @@
 
                                 <img
                                     id="preview"
-                                    src="{{ asset('cover/'.$buku->cover) }}"
+                                    src="{{ asset('storage/cover/'.$buku->cover) }}"
                                     class="img-thumbnail"
                                     width="180">
 

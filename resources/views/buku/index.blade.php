@@ -122,7 +122,7 @@
 
                                 @if($item->cover)
 
-                                    <img src="{{ asset('cover/'.$item->cover) }}"
+                                    <img src="{{ asset('storage/cover/'.$item->cover) }}"
                                          width="70"
                                          class="img-thumbnail">
 

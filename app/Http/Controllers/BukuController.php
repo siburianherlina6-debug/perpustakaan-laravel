@@ -41,34 +41,32 @@ class BukuController extends Controller
 }
 
     public function store(Request $request)
-    {
-        $request->validate([
-            'kode_buku'     => 'required|unique:bukus',
-            'judul'         => 'required',
-            'kategori_id'   => 'required|exists:kategoris,id',
-            'pengarang'     => 'required',
-            'penerbit'      => 'required',
-            'tahun_terbit'  => 'required|numeric',
-            'stok'          => 'required|integer|min:0',
-            'cover'         => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-        ]);
+{
+    $request->validate([
+        'kode_buku' => 'required|unique:bukus,kode_buku',
+        'judul' => 'required',
+        'kategori_id' => 'required',
+        'pengarang' => 'required',
+        'penerbit' => 'required',
+        'tahun_terbit' => 'required',
+        'stok' => 'required|integer|min:0',
+        'cover' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+    ]);
 
-        $data = $request->except('cover');
+    $data = $request->except('cover');
 
-        if ($request->hasFile('cover')) {
+    if ($request->hasFile('cover')) {
+        $namaFile = $request->file('cover')
+            ->store('cover', 'public');
 
-            $namaFile = time() . '.' . $request->cover->extension();
-
-            $request->cover->move(public_path('cover'), $namaFile);
-
-            $data['cover'] = $namaFile;
-        }
-
-        Buku::create($data);
-
-        return redirect('/buku')
-            ->with('success', 'Buku berhasil ditambahkan.');
+        $data['cover'] = basename($namaFile);
     }
+
+    Buku::create($data);
+
+    return redirect('/buku')
+        ->with('success', 'Data buku berhasil ditambahkan.');
+}
 
     public function show(Buku $buku)
     {
@@ -95,23 +93,18 @@ class BukuController extends Controller
             'cover'         => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        $data = $request->except('cover');
-
         if ($request->hasFile('cover')) {
 
-            // Hapus cover lama
-            if ($buku->cover && File::exists(public_path('cover/' . $buku->cover))) {
-                File::delete(public_path('cover/' . $buku->cover));
-            }
+    if ($buku->cover) {
+        Storage::disk('public')->delete('cover/' . $buku->cover);
+    }
 
-            $namaFile = time() . '.' . $request->cover->extension();
+    $namaFile = $request->file('cover')->store('cover', 'public');
 
-            $request->cover->move(public_path('cover'), $namaFile);
+    $data['cover'] = basename($namaFile);
+}
 
-            $data['cover'] = $namaFile;
-        }
-
-        $buku->update($data);
+$buku->update($data);
 
         return redirect('/buku')
             ->with('success', 'Data buku berhasil diperbarui.');
